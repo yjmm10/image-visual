@@ -777,7 +777,42 @@ export default function ImageMaskApp() {
     drawCanvas()
   }, [drawCanvas])
 
-  const copyBoxes = useCallback(() => {
+  // 复制单个边界框
+  const copyBox = useCallback((box: Box) => {
+    // 创建一个新的边界框，保持相同的坐标但使用新的ID
+    const newBox: Box = {
+      ...box,
+      id: `${Date.now()}-copy`,
+      // 稍微偏移一点，以便用户可以看到它是一个新的框
+      x1: box.x1 + 10,
+      y1: box.y1 + 10,
+      x2: box.x2 + 10,
+      y2: box.y2 + 10,
+    }
+    
+    // 添加到当前图像，插入到原始边界框后面
+    setImages((prev) =>
+      prev.map((img) => {
+        if (img.id === currentImageId) {
+          const boxIndex = img.boxes.findIndex(b => b.id === box.id)
+          if (boxIndex !== -1) {
+            // 创建新数组，将新边界框插入到原始边界框后面
+            const newBoxes = [...img.boxes]
+            newBoxes.splice(boxIndex + 1, 0, newBox)
+            return { ...img, boxes: newBoxes }
+          }
+          // 如果找不到原始边界框（不应该发生），则追加到末尾
+          return { ...img, boxes: [...img.boxes, newBox] }
+        }
+        return img
+      })
+    )
+    
+    // 选中新复制的边界框
+    setSelectedBoxId(newBox.id)
+  }, [currentImageId])
+  
+  const exportBoxesData = useCallback(() => {
     const currentImage = getCurrentImage()
     if (!currentImage || currentImage.boxes.length === 0) return
 
@@ -788,53 +823,17 @@ export default function ImageMaskApp() {
       Math.round(box.y2),
     ])
 
-    navigator.clipboard.writeText(JSON.stringify(boxData))
+    // 创建一个更简洁的格式
+    const formattedData = JSON.stringify(boxData)
+      .replace(/\],\[/g, '],\n[')
+      .replace('[[', '[\n[')
+      .replace(']]', ']\n]')
+
+    navigator.clipboard.writeText(formattedData)
+    
+    // 显示提示
+    alert("边界框数据已复制到剪贴板！")
   }, [getCurrentImage])
-
-  const pasteBoxes = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      const parsed = JSON.parse(text)
-
-      let newBoxes: Box[] = []
-
-      if (Array.isArray(parsed)) {
-        if (parsed.length === 4 && parsed.every((n) => typeof n === "number")) {
-          // 单个边界框 [x1, y1, x2, y2]
-          newBoxes = [
-            {
-              id: Date.now().toString(),
-              x1: parsed[0],
-              y1: parsed[1],
-              x2: parsed[2],
-              y2: parsed[3],
-              color: colors[0],
-              visible: true,
-            },
-          ]
-        } else if (parsed.every((item) => Array.isArray(item) && item.length === 4)) {
-          // 多个边界框 [[x1, y1, x2, y2], ...]
-          newBoxes = parsed.map((coords: number[], index: number) => ({
-            id: `${Date.now()}-${index}`,
-            x1: coords[0],
-            y1: coords[1],
-            x2: coords[2],
-            y2: coords[3],
-            color: colors[index % colors.length],
-            visible: true,
-          }))
-        }
-      }
-
-      if (newBoxes.length > 0) {
-        setImages((prev) =>
-          prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [...img.boxes, ...newBoxes] } : img)),
-        )
-      }
-    } catch (error) {
-      console.error("粘贴失败:", error)
-    }
-  }, [currentImageId, colors])
 
   const currentImage = getCurrentImage()
 
@@ -997,64 +996,63 @@ export default function ImageMaskApp() {
                 <span className="text-sm font-medium">边界框</span>
               </div>
 
-              <div className="space-y-3">
-                <div className="relative">
-                  <Textarea
-                    placeholder="输入坐标格式：&#10;[206, 67, 252, 100]&#10;[[206, 67, 252, 100], [208, 144, 499, 438]]&#10;208, 144, 499, 438"
-                    value={boxInput}
-                    onChange={(e) => setBoxInput(e.target.value)}
-                    className="min-h-[60px] max-h-[120px] text-xs resize-y overflow-auto"
-                  />
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Textarea
+                      placeholder="输入坐标格式：&#10;[206, 67, 252, 100]&#10;[[206, 67, 252, 100], [208, 144, 499, 438]]&#10;208, 144, 499, 438"
+                      value={boxInput}
+                      onChange={(e) => setBoxInput(e.target.value)}
+                      className="min-h-[60px] max-h-[120px] text-xs resize-y overflow-auto"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={addBoxesFromInput}
+                      disabled={!boxInput.trim()}
+                      className="h-8 bg-transparent"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      添加
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={addBoxesFromInput}
-                    disabled={!boxInput.trim()}
-                    className="h-8 bg-transparent"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    添加
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyBoxes}
-                    disabled={!currentImage || currentImage.boxes.length === 0}
-                    className="h-8 bg-transparent"
-                  >
-                    <Copy className="w-4 h-4 mr-1" />
-                    复制
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={pasteBoxes} className="h-8 bg-transparent">
-                    <Clipboard className="w-4 h-4 mr-1" />
-                    粘贴
-                  </Button>
-                </div>
-              </div>
             </div>
 
             <div className="p-2 border-b border-border">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium">边界框列表 ({currentImage?.boxes.length || 0})</span>
-                {currentImage && currentImage.boxes.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (currentImage) {
-                        setImages((prev) =>
-                          prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
-                        )
-                        setSelectedBoxId(null)
-                      }
-                    }}
-                    className="text-destructive hover:text-destructive h-5 px-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {currentImage && currentImage.boxes.length > 0 && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={exportBoxesData}
+                        title="导出边界框数据"
+                        className="h-5 w-5 p-0"
+                      >
+                        <Download className="w-3 h-3 text-foreground/70" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (currentImage) {
+                            setImages((prev) =>
+                              prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
+                            )
+                            setSelectedBoxId(null)
+                          }
+                        }}
+                        className="text-destructive hover:text-destructive h-5 px-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1099,6 +1097,18 @@ export default function ImageMaskApp() {
                               className="h-5 w-5 p-0"
                             >
                               {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                copyBox(box)
+                              }}
+                              title="复制此边界框"
+                              className="h-5 w-5 p-0"
+                            >
+                              <Copy className="w-2.5 h-2.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1222,27 +1232,42 @@ export default function ImageMaskApp() {
           </main>
         </div>
 
-        <footer className="border-t bg-muted/30 px-4 py-2">
-          <div className="flex items-center justify-center text-xs text-muted-foreground">
-            <span>liferecords 致力于日常小工具的开发 • 邮箱: yjmm10@yeah.net</span>
+        <footer className="border-t bg-primary/5 px-4 py-3">
+          <div className="flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-sm font-medium text-primary">liferecords</p>
+              <p className="text-xs text-foreground/80 mt-1">致力于日常小工具的开发 • 邮箱: <span className="font-medium">yjmm10@yeah.net</span></p>
+            </div>
           </div>
         </footer>
       </div>
       <div
-        className="absolute top-0 left-[calc(var(--left-panel-width)-1px)] w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        className="absolute top-0 left-[calc(var(--left-panel-width)-2px)] w-4 h-full cursor-col-resize group z-10"
         style={{ "--left-panel-width": `${leftPanelWidth}px` } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "left")}
-      />
+      >
+        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-border group-hover:bg-primary/60 transition-colors">
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-10 flex items-center justify-center">
+            <div className="w-[3px] h-6 rounded-full bg-border/80 group-hover:bg-primary/80 transition-colors"></div>
+          </div>
+        </div>
+      </div>
 
       {/* 在中间面板也添加分隔条 */}
       <div
-        className="absolute top-0 left-[calc(var(--left-panel-width)+var(--middle-panel-width)-1px)] w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        className="absolute top-0 left-[calc(var(--left-panel-width)+var(--middle-panel-width)-2px)] w-4 h-full cursor-col-resize group z-10"
         style={{ 
           "--left-panel-width": `${leftPanelWidth}px`,
           "--middle-panel-width": `${middlePanelWidth}px`
         } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "middle")}
-      />
+      >
+        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-border group-hover:bg-primary/60 transition-colors">
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-10 flex items-center justify-center">
+            <div className="w-[3px] h-6 rounded-full bg-border/80 group-hover:bg-primary/80 transition-colors"></div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
