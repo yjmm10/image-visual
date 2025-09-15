@@ -501,15 +501,40 @@ export default function ImageMaskApp() {
   }, [currentImageId])
 
   const downloadCanvasImage = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const link = document.createElement("a")
     const currentImage = getCurrentImage()
     if (!currentImage) return
 
+    // 创建一个临时canvas来绘制完整图片
+    const tempCanvas = document.createElement("canvas")
+    const ctx = tempCanvas.getContext("2d")
+    if (!ctx) return
+
+    // 设置canvas大小为原图大小
+    tempCanvas.width = currentImage.image.width
+    tempCanvas.height = currentImage.image.height
+
+    // 绘制原图
+    ctx.drawImage(currentImage.image, 0, 0)
+
+    // 绘制所有边界框
+    currentImage.boxes.forEach((box) => {
+      if (!box.visible) return
+
+      const width = box.x2 - box.x1
+      const height = box.y2 - box.y1
+
+      ctx.strokeStyle = box.color
+      ctx.lineWidth = 2
+      ctx.strokeRect(box.x1, box.y1, width, height)
+
+      ctx.fillStyle = box.color + "33"
+      ctx.fillRect(box.x1, box.y1, width, height)
+    })
+
+    // 创建下载链接
+    const link = document.createElement("a")
     link.download = currentImage.name.split(".")[0] + "-with-boxes.png"
-    link.href = canvas.toDataURL()
+    link.href = tempCanvas.toDataURL("image/png")
     link.click()
   }, [getCurrentImage])
 
@@ -1225,17 +1250,23 @@ export default function ImageMaskApp() {
           </main>
         </div>
 
-        <footer className="bg-card/70 shadow-inner px-4 py-2.5">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center gap-2">
+        <footer className="bg-card/70 shadow-inner">
+          <div className="max-w-screen-xl mx-auto px-4 py-2 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-2 group relative">
               <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-xs font-medium text-primary">L</span>
               </div>
-              <div className="text-xs text-muted-foreground">
-                <span className="text-foreground/70">liferecords</span>
-                <span className="mx-1.5 text-border">•</span>
-                <span>yjmm10@yeah.net</span>
+              <span className="text-sm font-medium text-foreground/80">liferecords</span>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform scale-95 group-hover:scale-100 z-50">
+                <div className="bg-popover/95 backdrop-blur-sm rounded-lg shadow-lg p-3 relative">
+                  <img src="/qrcode.png" alt="QR Code" className="w-32 h-32" />
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-popover/95 backdrop-blur-sm rotate-45"></div>
+                </div>
               </div>
+            </div>
+            <div className="text-xs text-muted-foreground flex flex-col items-center gap-1">
+              <span>致力于日常小工具的开发</span>
+              <span>yjmm10@yeah.net</span>
             </div>
           </div>
         </footer>
