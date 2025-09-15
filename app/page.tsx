@@ -840,7 +840,7 @@ export default function ImageMaskApp() {
 
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? "dark" : ""}`}>
-      <div className="bg-background text-foreground flex-1 flex flex-col">
+      <div className="bg-background text-foreground h-full flex flex-col">
         <header className="h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -895,9 +895,9 @@ export default function ImageMaskApp() {
           </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="h-[calc(100%-3.5rem-2.25rem)] flex overflow-hidden">
           <aside
-            className="border-r border-border bg-sidebar/30 flex flex-col relative"
+            className="border-r border-border bg-sidebar/30 flex flex-col relative h-full"
             style={{ width: leftPanelWidth }}
           >
             <div className="p-4 border-b border-border">
@@ -915,14 +915,16 @@ export default function ImageMaskApp() {
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">图片列表</span>
-                  <span className="text-xs text-muted-foreground">({images.length})</span>
-                </div>
-
+            <div className="p-4 border-b border-border">
+              <div className="flex items-center gap-2 mb-0">
+                <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">图片列表</span>
+                <span className="text-xs text-muted-foreground">({images.length})</span>
+              </div>
+            </div>
+            
+            <div className="h-[calc(100%-8.5rem)] overflow-hidden">
+              <div className="h-full overflow-y-auto p-4 pt-2">
                 {images.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -986,7 +988,7 @@ export default function ImageMaskApp() {
           </aside>
 
           <aside
-            className="border-r border-border bg-sidebar/20 flex flex-col relative"
+            className="border-r border-border bg-sidebar/20 flex flex-col relative h-full"
             style={{ width: middlePanelWidth }}
           >
             <div className="p-4 border-b border-border">
@@ -1031,142 +1033,136 @@ export default function ImageMaskApp() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {currentImage && currentImage.boxes.length > 0 ? (
-                <div className="p-2">
-                  {" "}
-                  <div className="flex items-center justify-between mb-2">
-                    {" "}
-                    <span className="text-xs font-medium">边界框 ({currentImage.boxes.length})</span> {/* 更小的字体 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (currentImage) {
-                          setImages((prev) =>
-                            prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
-                          )
-                          setSelectedBoxId(null)
-                        }
-                      }}
-                      className="text-destructive hover:text-destructive h-5 px-1" /* 更小的按钮 */
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  <div className="space-y-1">
-                    {" "}
-                    {currentImage.boxes.map((box, index) => (
-                      <div
-                        key={box.id}
-                        className={`group rounded border p-2 transition-all cursor-pointer ${
-                          /* 减少padding */
-                          selectedBoxId === box.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:border-primary/50"
-                        }`}
-                        onClick={() => setSelectedBoxId(selectedBoxId === box.id ? null : box.id)}
+            <div className="h-[calc(100%-10.5rem)] overflow-hidden">
+              <div className="h-full overflow-y-auto">
+                {currentImage && currentImage.boxes.length > 0 ? (
+                  <div className="p-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium">边界框 ({currentImage.boxes.length})</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (currentImage) {
+                            setImages((prev) =>
+                              prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
+                            )
+                            setSelectedBoxId(null)
+                          }
+                        }}
+                        className="text-destructive hover:text-destructive h-5 px-1"
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          {" "}
-                          <div className="flex items-center gap-1">
-                            {" "}
-                            <div className="w-2 h-2 rounded-sm border" style={{ backgroundColor: box.color }} />{" "}
-                            <span className="text-xs font-medium">#{index + 1}</span> {/* 更小的字体 */}
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      {currentImage.boxes.map((box, index) => (
+                        <div
+                          key={box.id}
+                          className={`group rounded border p-2 transition-all cursor-pointer ${
+                            selectedBoxId === box.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:border-primary/50"
+                          }`}
+                          onClick={() => setSelectedBoxId(selectedBoxId === box.id ? null : box.id)}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-sm border" style={{ backgroundColor: box.color }} />
+                              <span className="text-xs font-medium">#{index + 1}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setImages((prev) =>
+                                    prev.map((img) =>
+                                      img.id === currentImageId
+                                        ? {
+                                            ...img,
+                                            boxes: img.boxes.map((b) =>
+                                              b.id === box.id ? { ...b, visible: !b.visible } : b,
+                                            ),
+                                          }
+                                        : img,
+                                    ),
+                                  )
+                                }}
+                                className="h-5 w-5 p-0"
+                              >
+                                {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setImages((prev) =>
+                                    prev.map((img) =>
+                                      img.id === currentImageId
+                                        ? { ...img, boxes: img.boxes.filter((b) => b.id !== box.id) }
+                                        : img,
+                                    ),
+                                  )
+                                  if (selectedBoxId === box.id) {
+                                    setSelectedBoxId(null)
+                                  }
+                                }}
+                                className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setImages((prev) =>
-                                  prev.map((img) =>
-                                    img.id === currentImageId
-                                      ? {
-                                          ...img,
-                                          boxes: img.boxes.map((b) =>
-                                            b.id === box.id ? { ...b, visible: !b.visible } : b,
-                                          ),
-                                        }
-                                      : img,
-                                  ),
-                                )
-                              }}
-                              className="h-5 w-5 p-0" /* 更小的按钮 */
-                            >
-                              {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}{" "}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setImages((prev) =>
-                                  prev.map((img) =>
-                                    img.id === currentImageId
-                                      ? { ...img, boxes: img.boxes.filter((b) => b.id !== box.id) }
-                                      : img,
-                                  ),
-                                )
-                                if (selectedBoxId === box.id) {
-                                  setSelectedBoxId(null)
-                                }
-                              }}
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive" /* 更小的按钮 */
-                            >
-                              <Trash2 className="w-2.5 h-2.5" /> {/* 更小的图标 */}
-                            </Button>
+
+                          <div className="text-xs text-muted-foreground mb-1">
+                            [{Math.round(box.x1)}, {Math.round(box.y1)}, {Math.round(box.x2)}, {Math.round(box.y2)}]
+                          </div>
+
+                          <div className="flex gap-0.5">
+                            {colors.slice(0, 6).map((color) => (
+                              <button
+                                key={color}
+                                className={`w-3 h-3 rounded border transition-all ${
+                                  box.color === color
+                                    ? "border-foreground scale-110"
+                                    : "border-transparent hover:border-muted-foreground"
+                                }`}
+                                style={{ backgroundColor: color }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setImages((prev) =>
+                                    prev.map((img) =>
+                                      img.id === currentImageId
+                                        ? {
+                                            ...img,
+                                            boxes: img.boxes.map((b) => (b.id === box.id ? { ...b, color } : b)),
+                                          }
+                                        : img,
+                                    ),
+                                  )
+                                }}
+                              />
+                            ))}
                           </div>
                         </div>
-
-                        <div className="text-xs text-muted-foreground mb-1">
-                          [{Math.round(box.x1)}, {Math.round(box.y1)}, {Math.round(box.x2)}, {Math.round(box.y2)}]
-                        </div>
-
-                        <div className="flex gap-0.5">
-                          {" "}
-                          {colors.slice(0, 6).map((color) => (
-                            <button
-                              key={color}
-                              className={`w-3 h-3 rounded border transition-all ${
-                                /* 更小的颜色按钮 */
-                                box.color === color
-                                  ? "border-foreground scale-110"
-                                  : "border-transparent hover:border-muted-foreground"
-                              }`}
-                              style={{ backgroundColor: color }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setImages((prev) =>
-                                  prev.map((img) =>
-                                    img.id === currentImageId
-                                      ? {
-                                          ...img,
-                                          boxes: img.boxes.map((b) => (b.id === box.id ? { ...b, color } : b)),
-                                        }
-                                      : img,
-                                  ),
-                                )
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="p-4 text-center text-muted-foreground">
-                  <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">暂无边界框</p>
-                  <p className="text-xs mt-1">添加坐标来创建边界框</p>
-                </div>
-              )}
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">暂无边界框</p>
+                    <p className="text-xs mt-1">添加坐标来创建边界框</p>
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
 
-          <main className="flex-1 flex flex-col bg-muted/20">
+          <main className="flex-1 flex flex-col bg-muted/20 h-full">
             {currentImage ? (
               <>
                 <div className="h-10 border-b border-border bg-card/30 flex items-center justify-between px-4 text-xs text-foreground/80">
@@ -1188,7 +1184,7 @@ export default function ImageMaskApp() {
 
                 <div
                   ref={containerRef}
-                  className="flex-1 relative overflow-hidden bg-gradient-to-br from-muted/30 to-muted/10"
+                  className="h-[calc(100%-2.5rem)] relative overflow-auto bg-gradient-to-br from-muted/30 to-muted/10"
                 >
                   <canvas
                     ref={canvasRef}
@@ -1202,7 +1198,7 @@ export default function ImageMaskApp() {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center bg-gradient-to-br from-muted/30 to-muted/10">
+              <div className="h-full flex flex-col items-center justify-center text-center bg-gradient-to-br from-muted/30 to-muted/10">
                 <div className="max-w-md">
                   <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
                     <Upload className="w-10 h-10 text-primary" />
@@ -1228,13 +1224,18 @@ export default function ImageMaskApp() {
         </footer>
       </div>
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        className="absolute top-0 left-[calc(var(--left-panel-width)-1px)] w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        style={{ "--left-panel-width": `${leftPanelWidth}px` } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "left")}
       />
 
       {/* 在中间面板也添加分隔条 */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        className="absolute top-0 left-[calc(var(--left-panel-width)+var(--middle-panel-width)-1px)] w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        style={{ 
+          "--left-panel-width": `${leftPanelWidth}px`,
+          "--middle-panel-width": `${middlePanelWidth}px`
+        } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "middle")}
       />
     </div>
