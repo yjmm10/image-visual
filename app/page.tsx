@@ -566,7 +566,34 @@ export default function ImageMaskApp() {
           },
         ]
       }
+      
+      // 如果上面的逻辑没有返回结果，抛出错误
+      throw new Error("无法解析输入格式")
     } catch (error) {
+      // 尝试使用正则表达式解析
+      const regex = /\[\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\]/g;
+      const boxes: Box[] = [];
+      let match;
+      let index = 0;
+
+      while ((match = regex.exec(trimmed)) !== null) {
+        boxes.push({
+          x1: Number(match[1]),
+          y1: Number(match[2]),
+          x2: Number(match[3]),
+          y2: Number(match[4]),
+          id: `${Date.now()}-${index}`,
+          visible: true,
+          color: colors[index % colors.length],
+        });
+        index++;
+      }
+
+      if (boxes.length > 0) {
+        return boxes;
+      }
+
+      // 如果正则表达式也没有找到匹配，抛出原始错误
       throw new Error(`解析失败: ${error instanceof Error ? error.message : "未知错误"}`)
     }
   }
