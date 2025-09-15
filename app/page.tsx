@@ -840,7 +840,7 @@ export default function ImageMaskApp() {
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? "dark" : ""}`}>
       <div className="bg-background text-foreground h-full flex flex-col">
-        <header className="h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-4">
+        <header className="h-14 bg-card/70 shadow-sm backdrop-blur-sm flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -848,58 +848,21 @@ export default function ImageMaskApp() {
               </div>
               <h1 className="font-semibold text-lg">图像标注工具</h1>
             </div>
-            <div className="h-6 w-px bg-border" />
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {currentImage && (
-                <>
-                  <span>{currentImage.name}</span>
-                  <span>•</span>
-                  <span>{currentImage.boxes.length} 个边界框</span>
-                </>
-              )}
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {currentImage && (
-              <div className="flex items-center gap-1 mr-2">
-                <Button variant="ghost" size="sm" onClick={zoomOut} className="h-8 w-8 p-0">
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-                <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
-                  {Math.round(currentImage.viewState.scale * 100)}%
-                </span>
-                <Button variant="ghost" size="sm" onClick={zoomIn} className="h-8 w-8 p-0">
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={resetView} className="h-8 w-8 p-0">
-                  <RotateCcw className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-
             <Button variant="ghost" size="sm" onClick={() => setIsDarkMode(!isDarkMode)} className="h-8 w-8 p-0">
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={downloadCanvasImage}
-              disabled={!currentImage}
-              className="h-8 w-8 p-0"
-            >
-              <Download className="w-4 h-4" />
             </Button>
           </div>
         </header>
 
-        <div className="h-[calc(100%-3.5rem-2.25rem)] flex overflow-hidden">
+        <div className="h-[calc(100%-3.5rem-2.25rem)] flex overflow-hidden bg-background/50 rounded-md mx-1 my-1 shadow-sm">
           <aside
-            className="border-r border-border bg-sidebar/30 flex flex-col relative h-full"
+            className="border-r-0 bg-sidebar/20 flex flex-col relative h-full rounded-l-md"
             style={{ width: leftPanelWidth }}
           >
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b-0 bg-sidebar/30">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -914,7 +877,7 @@ export default function ImageMaskApp() {
               </Button>
             </div>
 
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b-0 bg-sidebar/30">
               <div className="flex items-center gap-2 mb-0">
                 <ImageIcon className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">图片列表</span>
@@ -987,10 +950,10 @@ export default function ImageMaskApp() {
           </aside>
 
           <aside
-            className="border-r border-border bg-sidebar/20 flex flex-col relative h-full"
+            className="border-r-0 bg-sidebar/10 flex flex-col relative h-full"
             style={{ width: middlePanelWidth }}
           >
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b-0 bg-sidebar/30">
               <div className="flex items-center gap-2 mb-3">
                 <Layers className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">边界框</span>
@@ -1020,7 +983,7 @@ export default function ImageMaskApp() {
                 </div>
             </div>
 
-            <div className="p-2 border-b border-border">
+            <div className="p-2 border-b-0 bg-sidebar/30">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium">边界框列表 ({currentImage?.boxes.length || 0})</span>
                 <div className="flex items-center gap-1">
@@ -1177,23 +1140,53 @@ export default function ImageMaskApp() {
             </div>
           </aside>
 
-          <main className="flex-1 flex flex-col bg-muted/20 h-full">
+          <main className="flex-1 flex flex-col bg-muted/10 h-full rounded-r-md">
             {currentImage ? (
               <>
-                <div className="h-10 border-b border-border bg-card/30 flex items-center justify-between px-4 text-xs text-foreground/80">
+                <div className="h-12 border-b-0 bg-card/30 flex items-center justify-between px-4 text-sm">
                   <div className="flex items-center gap-4">
-                    <span>
-                      图像: {currentImage.image.width} × {currentImage.image.height}
-                    </span>
-                    <span>缩放: {Math.round(currentImage.viewState.scale * 100)}%</span>
-                    {mousePosition && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground/90">{currentImage.name}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="text-muted-foreground">{currentImage.boxes.length} 个边界框</span>
+                    </div>
+                    <div className="h-4 w-px bg-border/30" />
+                    <div className="flex items-center gap-4 text-xs text-foreground/70">
                       <span>
-                        坐标: ({mousePosition.x}, {mousePosition.y})
+                        {currentImage.image.width} × {currentImage.image.height}
                       </span>
-                    )}
+                      {mousePosition && (
+                        <span>
+                          坐标: ({mousePosition.x}, {mousePosition.y})
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span>使用滚轮缩放，拖拽平移</span>
+                    <div className="flex items-center gap-1 mr-1">
+                      <Button variant="ghost" size="sm" onClick={zoomOut} className="h-8 w-8 p-0">
+                        <ZoomOut className="w-4 h-4" />
+                      </Button>
+                      <span className="text-xs text-foreground/70 min-w-[3rem] text-center">
+                        {Math.round(currentImage.viewState.scale * 100)}%
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={zoomIn} className="h-8 w-8 p-0">
+                        <ZoomIn className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={resetView} className="h-8 w-8 p-0" title="重置视图">
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="h-4 w-px bg-border/30" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={downloadCanvasImage}
+                      className="h-8 w-8 p-0"
+                      title="下载标注后的图片"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
 
@@ -1232,11 +1225,17 @@ export default function ImageMaskApp() {
           </main>
         </div>
 
-        <footer className="border-t bg-primary/5 px-4 py-3">
+        <footer className="bg-card/70 shadow-inner px-4 py-2.5">
           <div className="flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-sm font-medium text-primary">liferecords</p>
-              <p className="text-xs text-foreground/80 mt-1">致力于日常小工具的开发 • 邮箱: <span className="font-medium">yjmm10@yeah.net</span></p>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-xs font-medium text-primary">L</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <span className="text-foreground/70">liferecords</span>
+                <span className="mx-1.5 text-border">•</span>
+                <span>yjmm10@yeah.net</span>
+              </div>
             </div>
           </div>
         </footer>
@@ -1246,9 +1245,9 @@ export default function ImageMaskApp() {
         style={{ "--left-panel-width": `${leftPanelWidth}px` } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "left")}
       >
-        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-border group-hover:bg-primary/60 transition-colors">
+        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-gradient-to-r from-transparent via-border/20 to-transparent group-hover:via-primary/30 transition-colors">
           <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-10 flex items-center justify-center">
-            <div className="w-[3px] h-6 rounded-full bg-border/80 group-hover:bg-primary/80 transition-colors"></div>
+            <div className="w-[3px] h-6 rounded-full bg-gradient-to-b from-border/30 via-border/40 to-border/30 group-hover:from-primary/40 group-hover:via-primary/50 group-hover:to-primary/40 transition-colors"></div>
           </div>
         </div>
       </div>
@@ -1262,9 +1261,9 @@ export default function ImageMaskApp() {
         } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "middle")}
       >
-        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-border group-hover:bg-primary/60 transition-colors">
+        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-gradient-to-r from-transparent via-border/20 to-transparent group-hover:via-primary/30 transition-colors">
           <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-10 flex items-center justify-center">
-            <div className="w-[3px] h-6 rounded-full bg-border/80 group-hover:bg-primary/80 transition-colors"></div>
+            <div className="w-[3px] h-6 rounded-full bg-gradient-to-b from-border/30 via-border/40 to-border/30 group-hover:from-primary/40 group-hover:via-primary/50 group-hover:to-primary/40 transition-colors"></div>
           </div>
         </div>
       </div>
