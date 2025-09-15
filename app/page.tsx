@@ -501,15 +501,40 @@ export default function ImageMaskApp() {
   }, [currentImageId])
 
   const downloadCanvasImage = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const link = document.createElement("a")
     const currentImage = getCurrentImage()
     if (!currentImage) return
 
+    // 创建一个临时canvas来绘制完整图片
+    const tempCanvas = document.createElement("canvas")
+    const ctx = tempCanvas.getContext("2d")
+    if (!ctx) return
+
+    // 设置canvas大小为原图大小
+    tempCanvas.width = currentImage.image.width
+    tempCanvas.height = currentImage.image.height
+
+    // 绘制原图
+    ctx.drawImage(currentImage.image, 0, 0)
+
+    // 绘制所有边界框
+    currentImage.boxes.forEach((box) => {
+      if (!box.visible) return
+
+      const width = box.x2 - box.x1
+      const height = box.y2 - box.y1
+
+      ctx.strokeStyle = box.color
+      ctx.lineWidth = 2
+      ctx.strokeRect(box.x1, box.y1, width, height)
+
+      ctx.fillStyle = box.color + "33"
+      ctx.fillRect(box.x1, box.y1, width, height)
+    })
+
+    // 创建下载链接
+    const link = document.createElement("a")
     link.download = currentImage.name.split(".")[0] + "-with-boxes.png"
-    link.href = canvas.toDataURL()
+    link.href = tempCanvas.toDataURL("image/png")
     link.click()
   }, [getCurrentImage])
 
@@ -566,7 +591,34 @@ export default function ImageMaskApp() {
           },
         ]
       }
+      
+      // 如果上面的逻辑没有返回结果，抛出错误
+      throw new Error("无法解析输入格式")
     } catch (error) {
+      // 尝试使用正则表达式解析
+      const regex = /\[\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\]/g;
+      const boxes: Box[] = [];
+      let match;
+      let index = 0;
+
+      while ((match = regex.exec(trimmed)) !== null) {
+        boxes.push({
+          x1: Number(match[1]),
+          y1: Number(match[2]),
+          x2: Number(match[3]),
+          y2: Number(match[4]),
+          id: `${Date.now()}-${index}`,
+          visible: true,
+          color: colors[index % colors.length],
+        });
+        index++;
+      }
+
+      if (boxes.length > 0) {
+        return boxes;
+      }
+
+      // 如果正则表达式也没有找到匹配，抛出原始错误
       throw new Error(`解析失败: ${error instanceof Error ? error.message : "未知错误"}`)
     }
   }
@@ -750,7 +802,42 @@ export default function ImageMaskApp() {
     drawCanvas()
   }, [drawCanvas])
 
-  const copyBoxes = useCallback(() => {
+  // 复制单个边界框
+  const copyBox = useCallback((box: Box) => {
+    // 创建一个新的边界框，保持相同的坐标但使用新的ID
+    const newBox: Box = {
+      ...box,
+      id: `${Date.now()}-copy`,
+      // 稍微偏移一点，以便用户可以看到它是一个新的框
+      x1: box.x1 + 10,
+      y1: box.y1 + 10,
+      x2: box.x2 + 10,
+      y2: box.y2 + 10,
+    }
+    
+    // 添加到当前图像，插入到原始边界框后面
+    setImages((prev) =>
+      prev.map((img) => {
+        if (img.id === currentImageId) {
+          const boxIndex = img.boxes.findIndex(b => b.id === box.id)
+          if (boxIndex !== -1) {
+            // 创建新数组，将新边界框插入到原始边界框后面
+            const newBoxes = [...img.boxes]
+            newBoxes.splice(boxIndex + 1, 0, newBox)
+            return { ...img, boxes: newBoxes }
+          }
+          // 如果找不到原始边界框（不应该发生），则追加到末尾
+          return { ...img, boxes: [...img.boxes, newBox] }
+        }
+        return img
+      })
+    )
+    
+    // 选中新复制的边界框
+    setSelectedBoxId(newBox.id)
+  }, [currentImageId])
+  
+  const exportBoxesData = useCallback(() => {
     const currentImage = getCurrentImage()
     if (!currentImage || currentImage.boxes.length === 0) return
 
@@ -761,60 +848,24 @@ export default function ImageMaskApp() {
       Math.round(box.y2),
     ])
 
-    navigator.clipboard.writeText(JSON.stringify(boxData))
+    // 创建一个更简洁的格式
+    const formattedData = JSON.stringify(boxData)
+      .replace(/\],\[/g, '],\n[')
+      .replace('[[', '[\n[')
+      .replace(']]', ']\n]')
+
+    navigator.clipboard.writeText(formattedData)
+    
+    // 显示提示
+    alert("边界框数据已复制到剪贴板！")
   }, [getCurrentImage])
-
-  const pasteBoxes = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      const parsed = JSON.parse(text)
-
-      let newBoxes: Box[] = []
-
-      if (Array.isArray(parsed)) {
-        if (parsed.length === 4 && parsed.every((n) => typeof n === "number")) {
-          // 单个边界框 [x1, y1, x2, y2]
-          newBoxes = [
-            {
-              id: Date.now().toString(),
-              x1: parsed[0],
-              y1: parsed[1],
-              x2: parsed[2],
-              y2: parsed[3],
-              color: colors[0],
-              visible: true,
-            },
-          ]
-        } else if (parsed.every((item) => Array.isArray(item) && item.length === 4)) {
-          // 多个边界框 [[x1, y1, x2, y2], ...]
-          newBoxes = parsed.map((coords: number[], index: number) => ({
-            id: `${Date.now()}-${index}`,
-            x1: coords[0],
-            y1: coords[1],
-            x2: coords[2],
-            y2: coords[3],
-            color: colors[index % colors.length],
-            visible: true,
-          }))
-        }
-      }
-
-      if (newBoxes.length > 0) {
-        setImages((prev) =>
-          prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [...img.boxes, ...newBoxes] } : img)),
-        )
-      }
-    } catch (error) {
-      console.error("粘贴失败:", error)
-    }
-  }, [currentImageId, colors])
 
   const currentImage = getCurrentImage()
 
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? "dark" : ""}`}>
-      <div className="bg-background text-foreground flex-1 flex flex-col">
-        <header className="h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-4">
+      <div className="bg-background text-foreground h-full flex flex-col">
+        <header className="h-14 bg-card/70 shadow-sm backdrop-blur-sm flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -822,58 +873,21 @@ export default function ImageMaskApp() {
               </div>
               <h1 className="font-semibold text-lg">图像标注工具</h1>
             </div>
-            <div className="h-6 w-px bg-border" />
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {currentImage && (
-                <>
-                  <span>{currentImage.name}</span>
-                  <span>•</span>
-                  <span>{currentImage.boxes.length} 个边界框</span>
-                </>
-              )}
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {currentImage && (
-              <div className="flex items-center gap-1 mr-2">
-                <Button variant="ghost" size="sm" onClick={zoomOut} className="h-8 w-8 p-0">
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-                <span className="text-xs text-muted-foreground min-w-[3rem] text-center">
-                  {Math.round(currentImage.viewState.scale * 100)}%
-                </span>
-                <Button variant="ghost" size="sm" onClick={zoomIn} className="h-8 w-8 p-0">
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={resetView} className="h-8 w-8 p-0">
-                  <RotateCcw className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-
             <Button variant="ghost" size="sm" onClick={() => setIsDarkMode(!isDarkMode)} className="h-8 w-8 p-0">
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={downloadCanvasImage}
-              disabled={!currentImage}
-              className="h-8 w-8 p-0"
-            >
-              <Download className="w-4 h-4" />
             </Button>
           </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="h-[calc(100%-3.5rem-2.25rem)] flex overflow-hidden bg-background/50 rounded-md mx-1 my-1 shadow-sm">
           <aside
-            className="border-r border-border bg-sidebar/30 flex flex-col relative"
+            className="border-r-0 bg-sidebar/20 flex flex-col relative h-full rounded-l-md"
             style={{ width: leftPanelWidth }}
           >
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b-0 bg-sidebar/30">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -888,14 +902,16 @@ export default function ImageMaskApp() {
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">图片列表</span>
-                  <span className="text-xs text-muted-foreground">({images.length})</span>
-                </div>
-
+            <div className="p-4 border-b-0 bg-sidebar/30">
+              <div className="flex items-center gap-2 mb-0">
+                <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">图片列表</span>
+                <span className="text-xs text-muted-foreground">({images.length})</span>
+              </div>
+            </div>
+            
+            <div className="h-[calc(100%-8.5rem)] overflow-hidden">
+              <div className="h-full overflow-y-auto p-4 pt-2">
                 {images.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -959,81 +975,83 @@ export default function ImageMaskApp() {
           </aside>
 
           <aside
-            className="border-r border-border bg-sidebar/20 flex flex-col relative"
+            className="border-r-0 bg-sidebar/10 flex flex-col relative h-full"
             style={{ width: middlePanelWidth }}
           >
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b-0 bg-sidebar/30">
               <div className="flex items-center gap-2 mb-3">
                 <Layers className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">边界框</span>
               </div>
 
-              <div className="space-y-3">
-                <Textarea
-                  placeholder="输入坐标格式：&#10;[206, 67, 252, 100]&#10;[[206, 67, 252, 100], [208, 144, 499, 438]]&#10;208, 144, 499, 438"
-                  value={boxInput}
-                  onChange={(e) => setBoxInput(e.target.value)}
-                  className="min-h-[60px] text-xs resize-none"
-                />
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={addBoxesFromInput}
-                    disabled={!boxInput.trim()}
-                    className="h-8 bg-transparent"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    添加
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyBoxes}
-                    disabled={!currentImage || currentImage.boxes.length === 0}
-                    className="h-8 bg-transparent"
-                  >
-                    <Copy className="w-4 h-4 mr-1" />
-                    复制
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={pasteBoxes} className="h-8 bg-transparent">
-                    <Clipboard className="w-4 h-4 mr-1" />
-                    粘贴
-                  </Button>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Textarea
+                      placeholder="输入坐标格式：&#10;[206, 67, 252, 100]&#10;[[206, 67, 252, 100], [208, 144, 499, 438]]&#10;208, 144, 499, 438"
+                      value={boxInput}
+                      onChange={(e) => setBoxInput(e.target.value)}
+                      className="min-h-[60px] max-h-[120px] text-xs resize-y overflow-auto"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={addBoxesFromInput}
+                      disabled={!boxInput.trim()}
+                      className="h-8 bg-transparent"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      添加
+                    </Button>
+                  </div>
+                </div>
+            </div>
+
+            <div className="p-2 border-b-0 bg-sidebar/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">边界框列表 ({currentImage?.boxes.length || 0})</span>
+                <div className="flex items-center gap-1">
+                  {currentImage && currentImage.boxes.length > 0 && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={exportBoxesData}
+                        title="导出边界框数据"
+                        className="h-5 w-5 p-0"
+                      >
+                        <Download className="w-3 h-3 text-foreground/70" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (currentImage) {
+                            setImages((prev) =>
+                              prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
+                            )
+                            setSelectedBoxId(null)
+                          }
+                        }}
+                        className="text-destructive hover:text-destructive h-5 px-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {currentImage && currentImage.boxes.length > 0 ? (
-                <div className="p-2">
-                  {" "}
-                  <div className="flex items-center justify-between mb-2">
-                    {" "}
-                    <span className="text-xs font-medium">边界框 ({currentImage.boxes.length})</span> {/* 更小的字体 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (currentImage) {
-                          setImages((prev) =>
-                            prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
-                          )
-                          setSelectedBoxId(null)
-                        }
-                      }}
-                      className="text-destructive hover:text-destructive h-5 px-1" /* 更小的按钮 */
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
+            <div className="h-[calc(100%-14.5rem)] overflow-hidden">
+              <div className="h-full overflow-y-auto p-2">
+                {currentImage && currentImage.boxes.length > 0 ? (
                   <div className="space-y-1">
-                    {" "}
                     {currentImage.boxes.map((box, index) => (
                       <div
                         key={box.id}
                         className={`group rounded border p-2 transition-all cursor-pointer ${
-                          /* 减少padding */
                           selectedBoxId === box.id
                             ? "border-primary bg-primary/5"
                             : "border-border bg-card hover:border-primary/50"
@@ -1041,11 +1059,9 @@ export default function ImageMaskApp() {
                         onClick={() => setSelectedBoxId(selectedBoxId === box.id ? null : box.id)}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          {" "}
                           <div className="flex items-center gap-1">
-                            {" "}
-                            <div className="w-2 h-2 rounded-sm border" style={{ backgroundColor: box.color }} />{" "}
-                            <span className="text-xs font-medium">#{index + 1}</span> {/* 更小的字体 */}
+                            <div className="w-2 h-2 rounded-sm border" style={{ backgroundColor: box.color }} />
+                            <span className="text-xs font-medium">#{index + 1}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Button
@@ -1066,9 +1082,21 @@ export default function ImageMaskApp() {
                                   ),
                                 )
                               }}
-                              className="h-5 w-5 p-0" /* 更小的按钮 */
+                              className="h-5 w-5 p-0"
                             >
-                              {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}{" "}
+                              {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                copyBox(box)
+                              }}
+                              title="复制此边界框"
+                              className="h-5 w-5 p-0"
+                            >
+                              <Copy className="w-2.5 h-2.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1086,9 +1114,9 @@ export default function ImageMaskApp() {
                                   setSelectedBoxId(null)
                                 }
                               }}
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive" /* 更小的按钮 */
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                             >
-                              <Trash2 className="w-2.5 h-2.5" /> {/* 更小的图标 */}
+                              <Trash2 className="w-2.5 h-2.5" />
                             </Button>
                           </div>
                         </div>
@@ -1098,12 +1126,10 @@ export default function ImageMaskApp() {
                         </div>
 
                         <div className="flex gap-0.5">
-                          {" "}
                           {colors.slice(0, 6).map((color) => (
                             <button
                               key={color}
                               className={`w-3 h-3 rounded border transition-all ${
-                                /* 更小的颜色按钮 */
                                 box.color === color
                                   ? "border-foreground scale-110"
                                   : "border-transparent hover:border-muted-foreground"
@@ -1128,40 +1154,70 @@ export default function ImageMaskApp() {
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : (
-                <div className="p-4 text-center text-muted-foreground">
-                  <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">暂无边界框</p>
-                  <p className="text-xs mt-1">添加坐标来创建边界框</p>
-                </div>
-              )}
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">暂无边界框</p>
+                    <p className="text-xs mt-1">添加坐标来创建边界框</p>
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
 
-          <main className="flex-1 flex flex-col bg-muted/20">
+          <main className="flex-1 flex flex-col bg-muted/10 h-full rounded-r-md">
             {currentImage ? (
               <>
-                <div className="h-10 border-b border-border bg-card/30 flex items-center justify-between px-4 text-xs text-foreground/80">
+                <div className="h-12 border-b-0 bg-card/30 flex items-center justify-between px-4 text-sm">
                   <div className="flex items-center gap-4">
-                    <span>
-                      图像: {currentImage.image.width} × {currentImage.image.height}
-                    </span>
-                    <span>缩放: {Math.round(currentImage.viewState.scale * 100)}%</span>
-                    {mousePosition && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground/90">{currentImage.name}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="text-muted-foreground">{currentImage.boxes.length} 个边界框</span>
+                    </div>
+                    <div className="h-4 w-px bg-border/30" />
+                    <div className="flex items-center gap-4 text-xs text-foreground/70">
                       <span>
-                        坐标: ({mousePosition.x}, {mousePosition.y})
+                        {currentImage.image.width} × {currentImage.image.height}
                       </span>
-                    )}
+                      {mousePosition && (
+                        <span>
+                          坐标: ({mousePosition.x}, {mousePosition.y})
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span>使用滚轮缩放，拖拽平移</span>
+                    <div className="flex items-center gap-1 mr-1">
+                      <Button variant="ghost" size="sm" onClick={zoomOut} className="h-8 w-8 p-0">
+                        <ZoomOut className="w-4 h-4" />
+                      </Button>
+                      <span className="text-xs text-foreground/70 min-w-[3rem] text-center">
+                        {Math.round(currentImage.viewState.scale * 100)}%
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={zoomIn} className="h-8 w-8 p-0">
+                        <ZoomIn className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={resetView} className="h-8 w-8 p-0" title="重置视图">
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="h-4 w-px bg-border/30" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={downloadCanvasImage}
+                      className="h-8 w-8 p-0"
+                      title="下载标注后的图片"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
 
                 <div
                   ref={containerRef}
-                  className="flex-1 relative overflow-hidden bg-gradient-to-br from-muted/30 to-muted/10"
+                  className="h-[calc(100%-2.5rem)] relative overflow-auto bg-gradient-to-br from-muted/30 to-muted/10"
                 >
                   <canvas
                     ref={canvasRef}
@@ -1175,7 +1231,7 @@ export default function ImageMaskApp() {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center bg-gradient-to-br from-muted/30 to-muted/10">
+              <div className="h-full flex flex-col items-center justify-center text-center bg-gradient-to-br from-muted/30 to-muted/10">
                 <div className="max-w-md">
                   <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
                     <Upload className="w-10 h-10 text-primary" />
@@ -1194,22 +1250,56 @@ export default function ImageMaskApp() {
           </main>
         </div>
 
-        <footer className="border-t bg-muted/30 px-4 py-2">
-          <div className="flex items-center justify-center text-xs text-muted-foreground">
-            <span>liferecords 致力于日常小工具的开发 • 邮箱: yjmm10@yeah.net</span>
+        <footer className="bg-card/70 shadow-inner">
+          <div className="max-w-screen-xl mx-auto px-4 py-2 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-2 group relative">
+              <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-xs font-medium text-primary">L</span>
+              </div>
+              <span className="text-sm font-medium text-foreground/80">liferecords</span>
+              <div className="fixed bottom-[calc(2.5rem+2px)] left-1/2 -translate-x-1/2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform scale-95 group-hover:scale-100 z-50">
+                <div className="bg-popover/95 backdrop-blur-sm rounded-lg shadow-lg p-4 relative max-w-none">
+                  <div className="w-[150px] h-[150px]">
+                    <img src="/qrcode.png" alt="QR Code" className="w-full h-full rounded-sm object-contain" />
+                  </div>
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-popover/95 backdrop-blur-sm rotate-45"></div>
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground flex flex-col items-center gap-1">
+              <span>致力于日常小工具的开发</span>
+              <span>yjmm10@yeah.net</span>
+            </div>
           </div>
         </footer>
       </div>
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        className="absolute top-0 left-[calc(var(--left-panel-width)-2px)] w-4 h-full cursor-col-resize group z-10"
+        style={{ "--left-panel-width": `${leftPanelWidth}px` } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "left")}
-      />
+      >
+        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-gradient-to-r from-transparent via-border/20 to-transparent group-hover:via-primary/30 transition-colors">
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-10 flex items-center justify-center">
+            <div className="w-[3px] h-6 rounded-full bg-gradient-to-b from-border/30 via-border/40 to-border/30 group-hover:from-primary/40 group-hover:via-primary/50 group-hover:to-primary/40 transition-colors"></div>
+          </div>
+        </div>
+      </div>
 
       {/* 在中间面板也添加分隔条 */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors"
+        className="absolute top-0 left-[calc(var(--left-panel-width)+var(--middle-panel-width)-2px)] w-4 h-full cursor-col-resize group z-10"
+        style={{ 
+          "--left-panel-width": `${leftPanelWidth}px`,
+          "--middle-panel-width": `${middlePanelWidth}px`
+        } as React.CSSProperties}
         onMouseDown={(e) => handlePanelMouseDown(e, "middle")}
-      />
+      >
+        <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-gradient-to-r from-transparent via-border/20 to-transparent group-hover:via-primary/30 transition-colors">
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-10 flex items-center justify-center">
+            <div className="w-[3px] h-6 rounded-full bg-gradient-to-b from-border/30 via-border/40 to-border/30 group-hover:from-primary/40 group-hover:via-primary/50 group-hover:to-primary/40 transition-colors"></div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
