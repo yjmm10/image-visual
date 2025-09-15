@@ -1257,9 +1257,11 @@ export default function ImageMaskApp() {
                 <span className="text-xs font-medium text-primary">L</span>
               </div>
               <span className="text-sm font-medium text-foreground/80">liferecords</span>
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform scale-95 group-hover:scale-100 z-50">
-                <div className="bg-popover/95 backdrop-blur-sm rounded-lg shadow-lg p-3 relative">
-                  <img src="/qrcode.png" alt="QR Code" className="w-32 h-32" />
+              <div className="fixed bottom-[calc(2.5rem+2px)] left-1/2 -translate-x-1/2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform scale-95 group-hover:scale-100 z-50">
+                <div className="bg-popover/95 backdrop-blur-sm rounded-lg shadow-lg p-4 relative max-w-none">
+                  <div className="w-[150px] h-[150px]">
+                    <img src="/qrcode.png" alt="QR Code" className="w-full h-full rounded-sm object-contain" />
+                  </div>
                   <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-popover/95 backdrop-blur-sm rotate-45"></div>
                 </div>
               </div>
