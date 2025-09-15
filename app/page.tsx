@@ -998,12 +998,14 @@ export default function ImageMaskApp() {
               </div>
 
               <div className="space-y-3">
-                <Textarea
-                  placeholder="输入坐标格式：&#10;[206, 67, 252, 100]&#10;[[206, 67, 252, 100], [208, 144, 499, 438]]&#10;208, 144, 499, 438"
-                  value={boxInput}
-                  onChange={(e) => setBoxInput(e.target.value)}
-                  className="min-h-[60px] text-xs resize-none"
-                />
+                <div className="relative">
+                  <Textarea
+                    placeholder="输入坐标格式：&#10;[206, 67, 252, 100]&#10;[[206, 67, 252, 100], [208, 144, 499, 438]]&#10;208, 144, 499, 438"
+                    value={boxInput}
+                    onChange={(e) => setBoxInput(e.target.value)}
+                    className="min-h-[60px] max-h-[120px] text-xs resize-y overflow-auto"
+                  />
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -1033,123 +1035,126 @@ export default function ImageMaskApp() {
               </div>
             </div>
 
-            <div className="h-[calc(100%-10.5rem)] overflow-hidden">
-              <div className="h-full overflow-y-auto">
+            <div className="p-2 border-b border-border">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">边界框列表 ({currentImage?.boxes.length || 0})</span>
+                {currentImage && currentImage.boxes.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (currentImage) {
+                        setImages((prev) =>
+                          prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
+                        )
+                        setSelectedBoxId(null)
+                      }
+                    }}
+                    className="text-destructive hover:text-destructive h-5 px-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="h-[calc(100%-14.5rem)] overflow-hidden">
+              <div className="h-full overflow-y-auto p-2">
                 {currentImage && currentImage.boxes.length > 0 ? (
-                  <div className="p-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium">边界框 ({currentImage.boxes.length})</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          if (currentImage) {
-                            setImages((prev) =>
-                              prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [] } : img)),
-                            )
-                            setSelectedBoxId(null)
-                          }
-                        }}
-                        className="text-destructive hover:text-destructive h-5 px-1"
+                  <div className="space-y-1">
+                    {currentImage.boxes.map((box, index) => (
+                      <div
+                        key={box.id}
+                        className={`group rounded border p-2 transition-all cursor-pointer ${
+                          selectedBoxId === box.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:border-primary/50"
+                        }`}
+                        onClick={() => setSelectedBoxId(selectedBoxId === box.id ? null : box.id)}
                       >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      {currentImage.boxes.map((box, index) => (
-                        <div
-                          key={box.id}
-                          className={`group rounded border p-2 transition-all cursor-pointer ${
-                            selectedBoxId === box.id
-                              ? "border-primary bg-primary/5"
-                              : "border-border bg-card hover:border-primary/50"
-                          }`}
-                          onClick={() => setSelectedBoxId(selectedBoxId === box.id ? null : box.id)}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-sm border" style={{ backgroundColor: box.color }} />
-                              <span className="text-xs font-medium">#{index + 1}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setImages((prev) =>
-                                    prev.map((img) =>
-                                      img.id === currentImageId
-                                        ? {
-                                            ...img,
-                                            boxes: img.boxes.map((b) =>
-                                              b.id === box.id ? { ...b, visible: !b.visible } : b,
-                                            ),
-                                          }
-                                        : img,
-                                    ),
-                                  )
-                                }}
-                                className="h-5 w-5 p-0"
-                              >
-                                {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setImages((prev) =>
-                                    prev.map((img) =>
-                                      img.id === currentImageId
-                                        ? { ...img, boxes: img.boxes.filter((b) => b.id !== box.id) }
-                                        : img,
-                                    ),
-                                  )
-                                  if (selectedBoxId === box.id) {
-                                    setSelectedBoxId(null)
-                                  }
-                                }}
-                                className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </Button>
-                            </div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-sm border" style={{ backgroundColor: box.color }} />
+                            <span className="text-xs font-medium">#{index + 1}</span>
                           </div>
-
-                          <div className="text-xs text-muted-foreground mb-1">
-                            [{Math.round(box.x1)}, {Math.round(box.y1)}, {Math.round(box.x2)}, {Math.round(box.y2)}]
-                          </div>
-
-                          <div className="flex gap-0.5">
-                            {colors.slice(0, 6).map((color) => (
-                              <button
-                                key={color}
-                                className={`w-3 h-3 rounded border transition-all ${
-                                  box.color === color
-                                    ? "border-foreground scale-110"
-                                    : "border-transparent hover:border-muted-foreground"
-                                }`}
-                                style={{ backgroundColor: color }}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setImages((prev) =>
-                                    prev.map((img) =>
-                                      img.id === currentImageId
-                                        ? {
-                                            ...img,
-                                            boxes: img.boxes.map((b) => (b.id === box.id ? { ...b, color } : b)),
-                                          }
-                                        : img,
-                                    ),
-                                  )
-                                }}
-                              />
-                            ))}
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setImages((prev) =>
+                                  prev.map((img) =>
+                                    img.id === currentImageId
+                                      ? {
+                                          ...img,
+                                          boxes: img.boxes.map((b) =>
+                                            b.id === box.id ? { ...b, visible: !b.visible } : b,
+                                          ),
+                                        }
+                                      : img,
+                                  ),
+                                )
+                              }}
+                              className="h-5 w-5 p-0"
+                            >
+                              {box.visible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setImages((prev) =>
+                                  prev.map((img) =>
+                                    img.id === currentImageId
+                                      ? { ...img, boxes: img.boxes.filter((b) => b.id !== box.id) }
+                                      : img,
+                                  ),
+                                )
+                                if (selectedBoxId === box.id) {
+                                  setSelectedBoxId(null)
+                                }
+                              }}
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </Button>
                           </div>
                         </div>
-                      ))}
-                    </div>
+
+                        <div className="text-xs text-muted-foreground mb-1">
+                          [{Math.round(box.x1)}, {Math.round(box.y1)}, {Math.round(box.x2)}, {Math.round(box.y2)}]
+                        </div>
+
+                        <div className="flex gap-0.5">
+                          {colors.slice(0, 6).map((color) => (
+                            <button
+                              key={color}
+                              className={`w-3 h-3 rounded border transition-all ${
+                                box.color === color
+                                  ? "border-foreground scale-110"
+                                  : "border-transparent hover:border-muted-foreground"
+                              }`}
+                              style={{ backgroundColor: color }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setImages((prev) =>
+                                  prev.map((img) =>
+                                    img.id === currentImageId
+                                      ? {
+                                          ...img,
+                                          boxes: img.boxes.map((b) => (b.id === box.id ? { ...b, color } : b)),
+                                        }
+                                      : img,
+                                  ),
+                                )
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="p-4 text-center text-muted-foreground">
