@@ -34,6 +34,12 @@ interface Box {
   color: string
 }
 
+interface FailedBox {
+  coordinates: number[] // [x1, y1, x2, y2]
+  originalInput: string // 原始输入文本
+  reason: string // 失败原因
+}
+
 interface ViewState {
   scale: number
   offsetX: number
@@ -62,6 +68,7 @@ export default function ImageMaskApp() {
   const [dragBoxId, setDragBoxId] = useState<string | null>(null)
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
+  const [failedBoxes, setFailedBoxes] = useState<FailedBox[]>([])
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(320)
   const [middlePanelWidth, setMiddlePanelWidth] = useState(288)
@@ -592,12 +599,17 @@ export default function ImageMaskApp() {
   }, [getCurrentImage])
 
   const parseBoxInput = (input: string): Box[] => {
-    const trimmed = input.trim()
-    if (!trimmed) return []
+    // 预处理：将所有数据转化为一行，去掉换行和多余的空格
+    let processed = input
+      .replace(/\n/g, ' ')  // 将换行符替换为空格
+      .replace(/\s+/g, ' ') // 将多个连续的空格替换为单个空格
+      .trim()               // 去掉首尾空格
+    
+    if (!processed) return []
 
     try {
-      if (trimmed.startsWith("[")) {
-        const parsed = JSON.parse(trimmed)
+      if (processed.startsWith("[")) {
+        const parsed = JSON.parse(processed)
         if (Array.isArray(parsed)) {
           if (Array.isArray(parsed[0])) {
             return parsed.map((coords: number[], index: number) => {
@@ -628,7 +640,7 @@ export default function ImageMaskApp() {
           }
         }
       } else {
-        const coords = trimmed.split(",").map((s) => Number.parseFloat(s.trim()))
+        const coords = processed.split(",").map((s) => Number.parseFloat(s.trim()))
         if (coords.length !== 4) throw new Error("需要4个坐标，用逗号分隔")
         if (coords.some(isNaN)) throw new Error("所有坐标必须是有效数字")
 
@@ -650,13 +662,15 @@ export default function ImageMaskApp() {
     } catch (error) {
       // 尝试使用正则表达式解析
       // 匹配多种格式的四个坐标：[1,2,3,4], [[1,2,3,4]], (1,2,3,4), "1,2,3,4"等
-      const regex = /(?:\[|\(|"|')?(?:\[|\(|"|')?(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:\]|\)|"|')?(?:\s*)(?:\]|\)|"|')?/g;
+      // 匹配四个数字，支持换行和各种格式
+      const regex = /(?:\[|\(|"|')?(?:\[|\(|"|')?(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s|\n)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s|\n)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s|\n)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:\]|\)|"|')?(?:\s*)(?:\]|\)|"|')?/g;
+      // const regex = /\[\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\]/g;
       
       const boxes: Box[] = [];
       let match;
       let index = 0;
 
-      while ((match = regex.exec(trimmed)) !== null) {
+      while ((match = regex.exec(processed)) !== null) {
         boxes.push({
           x1: Number(match[1]),
           y1: Number(match[2]),
@@ -682,27 +696,89 @@ export default function ImageMaskApp() {
     if (!currentImageId) return
 
     try {
-      const newBoxes = parseBoxInput(boxInput)
+      // 提取输入文本中的坐标部分
+      const extractCoordinateStrings = (input: string): string[] => {
+        // 匹配方括号内的内容，可能包含四个数字
+        const regex = /\[([^\[\]]*)\]/g;
+        const matches: string[] = [];
+        let match;
+        
+        while ((match = regex.exec(input)) !== null) {
+          // 检查是否可能是一个坐标（包含逗号或数字）
+          if (match[1].includes(',') || /\d/.test(match[1])) {
+            matches.push(`[${match[1]}]`);
+          }
+        }
+        
+        // 如果没有找到方括号格式，尝试查找逗号分隔的四个数字
+        if (matches.length === 0) {
+          const commaRegex = /(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/g;
+          while ((match = commaRegex.exec(input)) !== null) {
+            matches.push(match[0]);
+          }
+        }
+        
+        return matches;
+      };
+      
+      const coordinateStrings = extractCoordinateStrings(boxInput);
+      const newBoxes = parseBoxInput(boxInput);
+      const validBoxes: Box[] = [];
+      const newFailedBoxes: FailedBox[] = [];
 
-      for (const box of newBoxes) {
+      for (let i = 0; i < newBoxes.length; i++) {
+        const box = newBoxes[i];
+        // 获取对应的原始输入文本，如果没有对应的，则使用坐标数组的字符串表示
+        const originalInput = i < coordinateStrings.length ? 
+          coordinateStrings[i] : 
+          `[${box.x1}, ${box.y1}, ${box.x2}, ${box.y2}]`;
+          
         if (box.x1 >= box.x2 || box.y1 >= box.y2) {
-          alert("右下角坐标必须大于左上角坐标")
-          return
+          // 记录失败的数据而不是直接返回
+          newFailedBoxes.push({
+            coordinates: [box.x1, box.y1, box.x2, box.y2],
+            originalInput,
+            reason: "右下角坐标必须大于左上角坐标"
+          });
+        } else {
+          validBoxes.push(box);
         }
       }
 
-      setImages((prev) =>
-        prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [...img.boxes, ...newBoxes] } : img)),
-      )
+      // 如果有有效的边界框，添加到图像中
+      if (validBoxes.length > 0) {
+        setImages((prev) =>
+          prev.map((img) => (img.id === currentImageId ? { ...img, boxes: [...img.boxes, ...validBoxes] } : img)),
+        );
 
-      setBoxInput("")
-      if (newBoxes.length > 0) {
-        setSelectedBoxId(newBoxes[0].id)
+        if (validBoxes.length > 0) {
+          setSelectedBoxId(validBoxes[0].id);
+        }
       }
+
+      // 如果有失败的数据，更新失败数据状态（替换而不是追加）
+      if (newFailedBoxes.length > 0) {
+        setFailedBoxes(newFailedBoxes);
+      }
+
+      // 如果所有数据都失败了，显示提示
+      if (validBoxes.length === 0 && newFailedBoxes.length > 0) {
+        alert("所有边界框数据都不符合要求，已记录失败数据");
+      } else if (newFailedBoxes.length > 0) {
+        alert(`成功添加了 ${validBoxes.length} 个边界框，${newFailedBoxes.length} 个边界框不符合要求`);
+      }
+
+      setBoxInput("");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "输入格式错误")
+      // 解析错误也记录为失败数据（替换而不是追加）
+      setFailedBoxes([{
+        coordinates: [],
+        originalInput: boxInput,
+        reason: `解析失败: ${error instanceof Error ? error.message : "输入格式错误"}`
+      }]);
+      alert(error instanceof Error ? error.message : "输入格式错误");
     }
-  }, [boxInput, colors, currentImageId])
+  }, [boxInput, currentImageId])
 
   const getResizeHandle = useCallback(
     (x: number, y: number, box: Box) => {
@@ -914,6 +990,11 @@ export default function ImageMaskApp() {
     // 显示提示
     alert("边界框数据已复制到剪贴板！")
   }, [getCurrentImage])
+  
+  // 清除失败的边界框数据
+  const clearFailedBoxes = useCallback(() => {
+    setFailedBoxes([])
+  }, [])
 
   const currentImage = getCurrentImage()
 
@@ -1099,7 +1180,7 @@ export default function ImageMaskApp() {
               </div>
             </div>
 
-            <div className="h-[calc(100%-14.5rem)] overflow-hidden">
+            <div className="h-[calc(100%-14.5rem-32px)] overflow-hidden">
               <div className="h-full overflow-y-auto p-2">
                 {currentImage && currentImage.boxes.length > 0 ? (
                   <div className="space-y-1">
@@ -1214,6 +1295,53 @@ export default function ImageMaskApp() {
                     <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">暂无边界框</p>
                     <p className="text-xs mt-1">添加坐标来创建边界框</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 失败的边界框数据区域 */}
+            <div className="h-32 border-t">
+              <div className="p-2 border-b-0 bg-sidebar/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">失败的边界框数据 ({failedBoxes.length})</span>
+                  {failedBoxes.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFailedBoxes}
+                      className="text-destructive hover:text-destructive h-5 px-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="h-24 overflow-y-auto p-2">
+                {failedBoxes.length > 0 ? (
+                  <div className="space-y-1">
+                    {failedBoxes.map((failedBox, index) => (
+                      <div
+                        key={index}
+                        className="rounded border p-2 border-destructive/30 bg-destructive/5"
+                      >
+                        <div className="text-xs text-destructive mb-1">
+                          {failedBox.originalInput || 
+                            (failedBox.coordinates.length > 0 ? 
+                              `[${failedBox.coordinates.join(', ')}]` : 
+                              '解析错误')
+                          }
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          原因: {failedBox.reason}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <p className="text-xs">暂无失败数据</p>
                   </div>
                 )}
               </div>
