@@ -537,6 +537,59 @@ export default function ImageMaskApp() {
     link.href = tempCanvas.toDataURL("image/png")
     link.click()
   }, [getCurrentImage])
+  
+  const copyCanvasImageToClipboard = useCallback(() => {
+    const currentImage = getCurrentImage()
+    if (!currentImage) return
+
+    // 创建一个临时canvas来绘制完整图片
+    const tempCanvas = document.createElement("canvas")
+    const ctx = tempCanvas.getContext("2d")
+    if (!ctx) return
+
+    // 设置canvas大小为原图大小
+    tempCanvas.width = currentImage.image.width
+    tempCanvas.height = currentImage.image.height
+
+    // 绘制原图
+    ctx.drawImage(currentImage.image, 0, 0)
+
+    // 绘制所有边界框
+    currentImage.boxes.forEach((box) => {
+      if (!box.visible) return
+
+      const width = box.x2 - box.x1
+      const height = box.y2 - box.y1
+
+      ctx.strokeStyle = box.color
+      ctx.lineWidth = 2
+      ctx.strokeRect(box.x1, box.y1, width, height)
+
+      ctx.fillStyle = box.color + "33"
+      ctx.fillRect(box.x1, box.y1, width, height)
+    })
+
+    // 复制到剪贴板
+    tempCanvas.toBlob((blob) => {
+      if (blob) {
+        try {
+          // 创建ClipboardItem对象
+          const item = new ClipboardItem({ "image/png": blob })
+          // 写入剪贴板
+          navigator.clipboard.write([item]).then(() => {
+            // 显示成功提示
+            alert("图片已复制到剪贴板！")
+          }).catch(err => {
+            console.error("复制到剪贴板失败:", err)
+            alert("复制到剪贴板失败，请检查浏览器权限")
+          })
+        } catch (err) {
+          console.error("复制到剪贴板失败:", err)
+          alert("您的浏览器可能不支持此功能")
+        }
+      }
+    })
+  }, [getCurrentImage])
 
   const parseBoxInput = (input: string): Box[] => {
     const trimmed = input.trim()
@@ -596,7 +649,9 @@ export default function ImageMaskApp() {
       throw new Error("无法解析输入格式")
     } catch (error) {
       // 尝试使用正则表达式解析
-      const regex = /\[\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\]/g;
+      // 匹配多种格式的四个坐标：[1,2,3,4], [[1,2,3,4]], (1,2,3,4), "1,2,3,4"等
+      const regex = /(?:\[|\(|"|')?(?:\[|\(|"|')?(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:,|\s)(?:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:\s*)(?:\]|\)|"|')?(?:\s*)(?:\]|\)|"|')?/g;
+      
       const boxes: Box[] = [];
       let match;
       let index = 0;
@@ -1203,6 +1258,15 @@ export default function ImageMaskApp() {
                       </Button>
                     </div>
                     <div className="h-4 w-px bg-border/30" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={copyCanvasImageToClipboard}
+                      className="h-8 w-8 p-0"
+                      title="复制标注后的图片到剪贴板"
+                    >
+                      <Clipboard className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
